@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/style.css">
+    <title>Laulupartiid</title>
+    <script src="/static/js/wavesurfer.min.js"></script>
+</head>
+
+<body>
+    <header class="app-header">
+        <a href="/" class="header-btn">Kodulehele</a>
+        <h1 class="header-title">Laulud</h1>
+    </header>
+
+    <br>
+
+    <!-- Inject the song data from Flask -->
+    <script>
+        const laulud = {{ laulud | tojson | safe }};
+    </script>
+
+    <div class="laulud-container">
+        <div class="vasak-column">
+            <button class="koor-filter" data-filter="naiskoor">NAISKOOR</button>
+            <div class="partii-nupud">
+                {% for koor in naiskoor %}
+                    <button class="filter-btn" data-filter="{{ koor[0] }} naiskoor">{{ koor[0]|replace('_', ' ') }}</button>
+                    <br>
+                {% endfor %}
+            </div>
+
+            <button class="koor-filter" data-filter="meeskoor">MEESKOOR</button>
+            <div class="partii-nupud">
+                {% for koor in meeskoor %}
+                    <button class="filter-btn" data-filter="{{ koor[0] }} meeskoor">{{ koor[0]|replace('_', ' ') }}</button>
+                    <br>
+                {% endfor %}
+            </div>
+
+            <button class="koor-filter" data-filter="segakoor">SEGAKOOR</button>
+            <div class="partii-nupud">
+                {% for koor in segakoor %}
+                    <button class="filter-btn" data-filter="{{ koor[0] }} segakoor">{{ koor[0]|replace('_', ' ') }}</button>
+                    <br>
+                {% endfor %}
+            </div>
+
+            <button class="koor-filter" data-filter="ühendkoor">ÜHENDKOOR</button>
+            <div class="partii-nupud">
+                {% for koor in ühendkoor %}
+                    <button class="filter-btn" data-filter="{{ koor[0] }} ühendkoor">{{ koor[0]|replace('_', ' ') }}</button>
+                    <br>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="parem-column">
+            <!-- Loop through each song and create UI -->
+            {% for laul in laulud %}
+                <div class="wave-container" data-value="{{ laul[2] }} {{ laul[6] }}">
+                    <div class="laulud-container">
+                        <div class="vasak-sisu">
+                            <h2 class="rasvane">{{ laul[1]|replace('_', ' ') }}</h2>
+                            <p>{{ laul[2]|replace('_', ' ') }}</p>
+                        </div>
+
+                        <div class="parem-sisu">
+                            <!-- Show audio button -->
+                            <button class="showAudioPlayer" data-index="{{ loop.index }}">Kuula Laulu</button>
+                            <!-- Harjuta button -->
+                            <form action="/harjuta" METHOD="GET">
+                                <button class="väike" type="submit" name="laulu_id" value="{{ laul[0] }}">Harjuta</button>
+                            </form>
+                        </div>
+                    </div>
+                    <!-- Waveform container hidden by default -->
+                    <div id="waveform-{{ loop.index }}" class="waveform" style="display: none;"></div>
+
+                    <!-- Play/Pause button -->
+                    <button class="play-button" data-index="{{ loop.index }}" style="display: none;">▶ ||</button></button>
+                </div>
+
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- JavaScript section -->
+    <script>
+        const wavesurfers = {};
+        const showButtons = document.querySelectorAll(".showAudioPlayer");
+
+        showButtons.forEach(button => {
+            button.addEventListener("click", () => {
+                const index = button.dataset.index;
+                const containerId = `waveform-${index}`;
+                const playButton = document.querySelector(`.play-button[data-index="${index}"]`);
+                const waveformContainer = document.getElementById(containerId);
+
+                // Hide all waveforms and play buttons
+                document.querySelectorAll(".waveform").forEach(wf => wf.style.display = "none");
+                document.querySelectorAll(".play-button").forEach(pb => pb.style.display = "none");
+
+                // This is the new line that doesn't work
+                Object.values(wavesurfers).forEach(ws => ws.pause());
+
+                // Show the selected ones
+                waveformContainer.style.display = "block";
+                playButton.style.display = "block";
+
+                // Only create and load wavesurfer if not already done
+                if (!wavesurfers[index]) {
+                    const audioUrl = laulud[index - 1][4]; // Adjust index if needed
+
+                    if (!audioUrl) {
+                        console.error("No audio file found for index:", index);
+                        return;
+                    }
+
+                    const wavesurfer = WaveSurfer.create({
+                        container: `#${containerId}`,
+                        waveColor: 'violet',
+                        progressColor: 'blue',
+                        barWidth: 2,
+                        height: 150,
+                        backend: 'WebAudio',
+                        responsive: true
+                    });
+
+                    wavesurfer.load('/proxy-audio?url=' + encodeURIComponent(audioUrl));
+
+                    wavesurfer.on('ready', () => {
+                        console.log(`Waveform loaded for ${audioUrl}`);
+                    });
+
+                    wavesurfers[index] = wavesurfer;
+
+                    playButton.addEventListener("click", () => {
+                        wavesurfer.playPause();
+                    });
+                }
+            });
+        });
+
+
+        const filter_btns = document.querySelectorAll('.filter-btn');
+        const koor_filter = document.querySelectorAll('.koor-filter');
+        const containers = document.querySelectorAll('.wave-container');
+
+        filter_btns.forEach(button => {
+            button.addEventListener('click', () => {
+                Object.values(wavesurfers).forEach(ws => ws.pause());
+
+                const filterValue = button.getAttribute('data-filter').split(' ');
+                const partii = filterValue[0]
+                const koor = filterValue[1]
+
+                containers.forEach(container => {
+                    const containerValue = container.getAttribute('data-value').split(' ');
+                    if (containerValue.includes(partii) && containerValue.includes(koor)) {
+                        container.style.display = 'block';
+                    } else {
+                        container.style.display = 'none';
+                    }
+                });
+            });
+        });
+
+        koor_filter.forEach(button => {
+            button.addEventListener('click', () => {
+                Object.values(wavesurfers).forEach(ws => ws.pause());
+
+                const filterValue = button.getAttribute('data-filter');
+
+                containers.forEach(container => {
+                    const containerValue = container.getAttribute('data-value').split(' ');
+                    if (containerValue.includes(filterValue)) {
+                        container.style.display = 'block';
+                    } else {
+                        container.style.display = 'none';
+                    }
+                });
+            });
+        });
+    </script>
+
+</body>
+</html>

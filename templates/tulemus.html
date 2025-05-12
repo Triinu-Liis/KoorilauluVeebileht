@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Täpsus</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/static/js/wavesurfer.min.js"></script>
+</head>
+
+<body>
+    <header class="app-header">
+        <div class="header-left">
+            <a class="header-btn" href="/">Kodulehele</a>
+            <a class="header-btn" href="/laulud">Laulud</a>
+        </div>
+        <h1 class="header-title">Tulemus</h1>
+        <div class="header-right"></div>
+    </header>
+    <div class="harjuta-container">
+        <div class="harjuta-nimi">
+            <h2 class="rasvane">{{ algne_info[0][1]|replace('_', ' ') }}</h2>
+            <p>{{ algne_info[0][2]|replace('_', ' ') }}</p>
+        </div>
+
+
+        <div class="skoorid">
+            <div class="skoor_vasak">
+                <div class="pie_chart" data-value="{{ skoor }}">
+                    <span class="label">{{ skoor }}%</span>
+                </div>
+            </div>
+
+            <div class="skoor_parem">
+                <div class="skoorid">
+                    <div class="skoor_vasak">
+                        <p>Helikõrguste täpsus: {{ täpsus }}%</p>
+                    </div>
+                    <div class="skoor_parem">
+                        <div class="bar-container" data-value="{{ täpsus }}">
+                            <div class="bar-fill"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="skoorid">
+                    <div class="skoor_vasak">
+                        <p>Stabiilsus: {{ stabiilsuse_skoor }}%</p>
+                    </div>
+                    <div class="skoor_parem">
+                        <div class="bar-container" data-value="{{ stabiilsuse_skoor }}">
+                            <div class="bar-fill"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="skoorid">
+                    <div class="skoor_vasak">
+                        <p>Rütmi täpsus: {{ rütm }}%</p>
+                    </div>
+                    <div class="skoor_parem">
+                        <div class="bar-container" data-value="{{ rütm }}">
+                            <div class="bar-fill"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="centered-buttons">
+            <button class="play-button" id="play-original" disabled>Algne</button>
+            <button class="play-button" id="play-recording" disabled>Salvestatud</button>
+        </div>
+
+        <div class="waveform" id="waveform-original"></div>
+        <div class="waveform" id="waveform-recording"></div>
+
+        <div id="chart">
+            <canvas id="pitchChart" width="800" height="150"></canvas>
+        </div>
+    </div>
+
+    <script>
+        const originalPitchData = {{ salvestatu_helikõrgused }};  // Original pitch data (MIDI numbers)
+        const userPitchData = {{ algse_helikõrgused }};      // User pitch data (MIDI numbers)
+        const time_labels = {{ time_labels | safe }};
+
+        // Convert frequency in Hz to the nearest MIDI number
+        function hzToMidi(freq) {
+            return Math.round(69 + 12 * Math.log2(freq / 440));
+        }
+
+        // Convert MIDI values to musical note names (like C4, D#5)
+        function midiToNote(midi) {
+            const noteNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+            const octave = Math.floor(midi / 12) - 1;
+            const note = noteNames[midi % 12];
+            return note + octave;
+        }
+
+        // Combine both steps: Hertz to Note Name
+        function hzToNoteName(freq) {
+            if (!freq || freq <= 0) return null; // skip invalid or silent frames
+            const midi = hzToMidi(freq);
+            return midiToNote(midi);
+        }
+
+
+        // Convert original and user pitch data to note names
+        const originalNotes = originalPitchData.map(hz => hzToNoteName(hz));
+        const userNotes = userPitchData.map(hz => hzToNoteName(hz));
+
+        // Set up the chart
+        const ctx = document.getElementById('pitchChart').getContext('2d');
+        const pitchChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: time_labels,
+                datasets: [
+                    {
+                        label: 'Originaalne meloodia',
+                        data: originalPitchData,
+                        borderColor: '#62b1da',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.3
+                    },
+                    {
+                        label: 'Salvestatud meloodia',
+                        data: userPitchData,
+                        borderColor: '#ac6cd3',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.3
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Helikõrgus (noodid)'  // Change the title to "Notes"
+                        },
+                        // Here, we'll update the Y-axis ticks to display note names
+                        ticks: {
+                            callback: function(value) {
+                                return hzToNoteName(value);  // Convert MIDI value to note name
+                            }
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Aeg (s)'
+                        }
+                    }
+                }
+            }
+        });
+
+
+        const originalUrl = "/salvestatud/algne_"+{{ timestamp }}+".wav";
+        const recordingUrl = "/salvestatud/salvestatud_" + {{ timestamp }} + ".wav";
+        const originaal_nupp = document.getElementById('play-original');
+        const salvestatud_nupp = document.getElementById('play-recording');
+
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+        const waveOriginal = WaveSurfer.create({
+            container: "#waveform-original",
+            audioContext: audioContext,
+            waveColor: "#62b1da",
+            barWidth: 2,
+            progressColor: "#A9DEF9",
+            height: 80,
+            url: originalUrl
+        });
+
+        const waveRecording = WaveSurfer.create({
+            container: "#waveform-recording",
+            audioContext: audioContext,
+            waveColor: "#ac6cd3",
+            barWidth: 2,
+            progressColor: "#E4C1F9",
+            height: 80,
+            url: recordingUrl
+        });
+
+        waveRecording.setVolume(0.5);
+
+
+        function syncWavesurfer(w1, w2) {
+            w1.on("audioprocess", () => {
+                if (Math.abs(w1.getCurrentTime() - w2.getCurrentTime()) > 0.1) {
+                    w2.seekTo(w1.getCurrentTime() / w1.getDuration());
+                }
+            });
+        }
+
+        waveRecording.on('ready', () => {
+            console.log("Recorded audio fully loaded");
+            document.getElementById('play-recording').disabled = false;
+        });
+
+        waveOriginal.on('ready', () => {
+            console.log("Recorded audio fully loaded");
+            document.getElementById('play-original').disabled = false;
+        });
+
+        document.getElementById("play-original").addEventListener("click", () => {
+            waveRecording.pause();
+            waveOriginal.playPause();
+        });
+
+        document.getElementById("play-recording").addEventListener("click", () => {
+            waveOriginal.pause();
+            waveRecording.playPause();
+        });
+
+
+        document.addEventListener("DOMContentLoaded", () => {
+          document.querySelectorAll(".bar-container").forEach(container => {
+            const value = container.getAttribute("data-value");
+            const fill = container.querySelector(".bar-fill");
+            if (fill && value) {
+              fill.style.width = value + "%";
+            }
+          });
+        });
+
+        document.addEventListener("DOMContentLoaded", () => {
+          document.querySelectorAll(".pie_chart").forEach(pie => {
+            const value = parseFloat(pie.dataset.value);
+            const remainder = 100 - value;
+            pie.style.background = `conic-gradient(
+              #F694C1 0% ${value}%,
+              #ddd ${value}% 100%
+            )`;
+          });
+        });
+
+    </script>
+
+</body>
+
+
+
+
+
+</html>

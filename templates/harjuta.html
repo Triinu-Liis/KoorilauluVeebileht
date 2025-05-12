@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/style.css">
+    <title>Harjuta</title>
+
+</head>
+
+<body>
+    <header class="app-header">
+        <div class="header-left">
+            <a class="header-btn" href="/">Kodulehele</a>
+            <a class="header-btn" href="/laulud">Laulud</a>
+        </div>
+        <h1 class="header-title">Harjuta</h1>
+        <div class="header-right"></div>
+    </header>
+
+    <div class="harjuta-container">
+        <div class="harjuta-nimi">
+            <h2 class="rasvane">{{ laulu_info[0][1]|replace('_', ' ') }}</h2>
+            <p>{{ laulu_info[0][2]|replace('_', ' ') }}</p>
+        </div>
+
+        <div class="taktid-wrapper">
+            {% for takt in taktid %}
+                <button class="time-button" id="takt-{{ loop.index }}" data-time="{{ takt[2] }}">{{ takt[1] }}</button>
+            {% endfor %}
+        </div>
+
+        <div id="waveform" class="waveform"></div>
+        <div class="centered-buttons">
+            <button class="play-button" id="play">▶</button>
+            <button class="play-button" id="pause">||</button>
+        </div>
+
+        <div class="centered-buttons">
+            <button class="suur" id="algusNupp">Alusta laulmist</button>
+            <button class="suur" id="lõpuNupp" disabled>Lõpeta laulmine</button>
+            <h3>Salvestuse kestus: <span id="timer">00:00</span></h3>
+            <div id="waveform_salvestatud" class="waveform"></div>
+            <button class="play-button" id="mängi_salvestust">▶||</button>
+        </div>
+        <div class="submit-container">
+            <form id="markerForm" action="/tulemus" method="GET">
+                <input type="hidden" id="markerStart" name="markerStart" />
+                <input type="hidden" id="markerEnd" name="markerEnd" />
+                <input type="hidden" id="audioTimestamp" name="audioTimestamp" />
+                <button type="submit" class="suur" id="võrdle" value="{{ laulu_info[0][0] }}" name="algne" disabled>Võrdle</button>
+            </form>
+        </div>
+    </div>
+
+    <script type="module">
+        import WaveSurfer from 'https://cdn.jsdelivr.net/npm/wavesurfer.js@7/dist/wavesurfer.esm.js';
+        import RegionsPlugin from 'https://cdn.jsdelivr.net/npm/wavesurfer.js@7/dist/plugins/regions.esm.js';
+
+        var path = "{{ laulu_info[0][4] }}";
+        console.log("Audio path:", path);
+
+        document.addEventListener("DOMContentLoaded", function() {
+            const wavesurfer = WaveSurfer.create({
+                container: '#waveform',
+                waveColor: 'violet',
+                progressColor: 'blue',
+                barWidth: 2,
+                height: 150,
+                backend: 'MediaElement',
+                responsive: true
+            });
+
+            wavesurfer.on('region-created', region => {
+                if (region.label) {
+                    region.element.innerHTML = `<span class="region-label">${region.label}</span>`;
+                }
+            });
+
+            const region = wavesurfer.registerPlugin(RegionsPlugin.create());
+            let markerStart, markerEnd;
+            wavesurfer.load('/proxy-audio?url=' + encodeURIComponent(path));
+
+            wavesurfer.on('ready', function () {
+                console.log(`Waveform loaded`);
+
+                markerStart = region.addRegion({
+                    start: 5,
+                    end: 7,
+                    color: '#18A999',
+                    drag: true,
+                    resize: false
+                });
+
+                markerStart.element.innerHTML = `<span style="position:absolute;top:5px;background:black;color:white;padding:2px 6px;border-radius:4px;">Algus</span>`;
+
+                markerEnd = region.addRegion({
+                    start: 60,
+                    end: 62,
+                    color: '#DB5A42',
+                    drag: true,
+                    resize: false
+                });
+
+                markerEnd.element.innerHTML = '<span style="position:absolute;top:5px;right:0px;background:black;color:white;padding:2px 6px;border-radius:4px;">Lõpp</span>';
+
+                updateFormValues();
+                console.log(`marker start: ${markerStart.start}, marker end: ${markerEnd.start}`);
+            });
+
+            function updateFormValues() {
+                document.getElementById('markerStart').value = markerStart.start;
+                document.getElementById('markerEnd').value = markerEnd.start;
+                console.log(`Updated form values: Start = ${markerStart.start}, End = ${markerEnd.start}`);
+            }
+
+            wavesurfer.on('region-update-end', function(region) {
+                updateFormValues();
+            });
+
+            document.getElementById('play').addEventListener('click', function () {
+                if (markerStart) {
+                    wavesurfer.seekTo(markerStart.start / wavesurfer.getDuration());
+                    wavesurfer.play();
+                    console.log("Audio mängib alates: ", markerStart.start);
+                }
+            });
+
+            document.getElementById('pause').addEventListener('click', function () {
+                wavesurfer.pause();
+            });
+
+            document.querySelectorAll('.time-button').forEach(button => {
+                button.addEventListener('click', () => {
+                    const time = parseFloat(button.dataset.time);  // Read from data-time
+                    console.log("Jumping to time:", time);
+                    const duration = wavesurfer.getDuration();
+
+                    // Remove old markers
+                    if (markerStart) markerStart.remove();
+                    if (markerEnd) markerEnd.remove();
+
+                    // Add updated markers
+                    markerStart = region.addRegion({
+                        start: time,
+                        end: time + 2, // Adjust if needed
+                        color: '#18A999',
+                        drag: true,
+                        resize: false
+                    });
+
+                    markerStart.element.innerHTML = `<span style="position:absolute;top:5px;background:black;color:white;padding:2px 6px;border-radius:4px;">Algus</span>`;
+                    markerEnd = region.addRegion({
+                        start: duration - 2,
+                        end: duration + 2,
+                        color: '#DB5A42',
+                        drag: true,
+                        resize: false
+                    });
+
+                    markerEnd.element.innerHTML = '<span style="position:absolute;top:5px;right:0px;background:black;color:white;padding:2px 6px;border-radius:4px;">Lõpp</span>';
+
+                    updateFormValues();
+
+                    wavesurfer.seekTo(time / duration);
+                    wavesurfer.play();
+                });
+            });
+
+            wavesurfer.on('timeupdate', function(currentTime) {
+                if (markerEnd && currentTime >= markerEnd.start) {
+                    wavesurfer.pause();
+                    console.log("Audio peatatud ajal: ", markerEnd.start);
+                }
+            });
+
+            document.getElementById("markerForm").addEventListener("submit", function(event) {
+                updateFormValues();
+            });
+        });
+
+        let recorder, audioStream, audioBlob, audioUrl, timerInterval;
+        let sekundid = 0;
+
+        const algusN = document.getElementById('algusNupp');
+        const lõppN = document.getElementById('lõpuNupp');
+        const waveform_salvestatud = document.getElementById('waveform_salvestatud');
+        const timerDisplay = document.getElementById('timer');
+        const võrdle_nupp = document.getElementById('võrdle');
+        const mängi_salvestust = document.getElementById('mängi_salvestust');
+        mängi_salvestust.disabled = true;
+
+        const formatTime = (sekundid) => {
+            const minutid = Math.floor(sekundid / 60);
+            const secs = sekundid % 60;
+            return `${minutid.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }; // format time
+
+        const wavesurfer_salvestatud = WaveSurfer.create({
+            container: '#waveform_salvestatud',
+            waveColor: 'violet',
+            progressColor: 'blue',
+            barWidth: 2,
+            height: 150,
+            backend: 'MediaElement',
+            responsive: true
+        });
+
+        document.getElementById('mängi_salvestust').addEventListener('click', function () {
+            wavesurfer_salvestatud.playPause();
+        });
+
+        algusN.onclick = async () => {
+            console.log("Vajutati algusnuppu")
+            algusN.textContent = "Salvestab"
+
+
+            audioStream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    echoCancellation: false,
+                    noiseSuppression: false,
+                    channelCount: 1
+                }
+
+            });
+
+            recorder = new MediaRecorder(audioStream);
+
+            recorder.ondataavailable = (e) => {
+                audioBlob = e.data;
+                audioUrl = URL.createObjectURL(audioBlob);
+
+                wavesurfer_salvestatud.load(audioUrl);
+            }; // ondatatavailable
+
+            recorder.start();
+            algusN.disabled = true;
+            lõppN.disabled = false;
+
+            sekundid = 0;
+            timerDisplay.textContent = formatTime(sekundid);
+            timerInterval = setInterval(() => {
+                sekundid++;
+                timerDisplay.textContent = formatTime(sekundid);
+            }, 1000); // timerinterval
+        }; // alguse nupu vajutamisel
+
+        lõppN.onclick = () => {
+            console.log("Vajutati lõpunuppu")
+
+            recorder.stop();
+            audioStream.getTracks().forEach(track => track.stop());
+
+            algusN.textContent = "Alusta laulmist"
+            algusN.disabled = false;
+            lõppN.disabled = true;
+            võrdle_nupp.disabled = false;
+            mängi_salvestust.disabled = false;
+
+            clearInterval(timerInterval);
+            console.log("Salvestamine lõpetatud");
+
+            recorder.onstop = () => {
+                console.log("Recorder stopped event fired");
+
+                // Check if audioBlob is available
+                if (!audioBlob) {
+                    console.error("audioBlob is undefined or null");
+                    return;
+                }
+
+                // Append audioBlob to FormData
+                const formData = new FormData();
+                formData.append("audio", audioBlob, "salvestatud.wav");
+
+                fetch('/salvestatud', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        console.log("Upload succeeded:", data.filename);
+                        document.getElementById("audioTimestamp").value = data.timestamp;
+                        // You can now use data.filename if needed
+                    } else {
+                        console.error("Upload failed:", data.error);
+                    }
+                })
+                .catch(err => {
+                    console.error("Error uploading audio:", err);
+                });
+            };
+        };
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="preload" as="style" href="/static/style.css">
+    <link rel="stylesheet" href="/static/style.css">
+    <title>Koorilaulude õppimise veebileht</title>
+</head>
+<body>
+
+    <div class="koduleht">
+        <div class="tutvustav">
+            <h2>Tere tulemast Koorilaulude õppimise veebilehele!</h2>
+            <p>Avasta laule ja saa kohest tagasisidet oma esituse kohta.</p>
+        </div>
+
+        <div class="alusta">
+            <div class="alusta-vasak">
+                <p>Klõpsa nupul „Laulud“, et valida laul ja alustada harjutamist!</p>
+                <a class="juhised_btn" href="/laulud">Laulud</a>
+            </div>
+
+            <div class="alusta-parem">
+                <p>Täpsemate juhiste saamiseks klõpsake nuppu „Juhised“.</p>
+                <button class="juhised_btn" onclick="avaJuhised()">Juhised</button>
+            </div>
+        </div>
+.
+        </div>
+
+
+        <div class="juhised-container" id="juhised-container" style="display:none;">
+          <div class="juhised-paar">
+            <div class="vasak-juhised">
+              <p>Mine "Laulud" lehele</p>
+              <br>
+              <p>Vali laul ja vajuta "Harjuta"</p>
+            </div>
+            <div class="parem-juhised">
+              <img class="juhised_img" src="static/juhised/vali_laul.png" alt="Vali laul">
+            </div>
+          </div>
+
+          <div class="juhised-paar">
+            <div class="vasak-juhised">
+              <p>Vali endale sobiv vahemik harjutamiseks</p>
+              <p>Vajuta "Alusta laulmist"</p>
+            </div>
+            <div class="parem-juhised">
+              <img class="juhised_img" src="static/juhised/vali_vahemik.png" alt="Vali vahemik laulmiseks">
+            </div>
+          </div>
+
+
+          <div class="juhised-paar">
+            <div class="vasak-juhised">
+              <p>Luba mikrofoni kasutus</p>
+            </div>
+            <div class="parem-juhised">
+              <img class="juhised_img" src="static/juhised/vali_mikrofon.png" alt="Luba mikrofoni kasutus arvutis">
+              <img class="juhised_img" src="static/juhised/vali_mikrofon_telefon.jpg" alt="Luba mikrofoni kasutus telefonis">
+            </div>
+          </div>
+
+          <div class="juhised-paar">
+            <div class="vasak-juhised">
+              <p>Laula ♫♪♬</p>
+              <p>Vajuta "Lõpeta laulmine"</p>
+              <p>Vajuta "Võrdle", et saada tulemused</p>
+            </div>
+            <div class="parem-juhised">
+              <img class="juhised_img" src="static/juhised/vali_võrdle.png" alt="Laula ja lõpeta">
+            </div>
+
+          </div>
+        </div>
+
+    </div>
+    <script>
+    function avaJuhised() {
+      const el = document.getElementById("juhised-container");
+      el.style.display = el.style.display === "none" ? "block" : "none";
+    }
+    </script>
+</body>
+</html>
